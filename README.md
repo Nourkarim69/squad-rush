@@ -5,7 +5,7 @@ Une appli mobile (PWA) qui regroupe 10 mini-jeux « satisfaisants », 2 par cat�
 | Catégorie | Jeux |
 | --- | --- |
 | Foule et chiffres | Squad Rush, Trou glouton |
-| Satisfaisant | Tri des couleurs, Karcher |
+| Satisfaisant | Tri des couleurs, Chute spirale |
 | Puzzle | Fusion 2048, Bloc puzzle |
 | Réflexes | Lancer de couteaux, Tour infinie |
 | Idle et gestion | Empire idle, Dernière tour |

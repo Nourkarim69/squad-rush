@@ -62,7 +62,7 @@ const CATS=[
   ]},
   {t:'Satisfaisant',g:[
     {id:'sort',best:null,n:'Tri des couleurs',d:'Range chaque couleur dans son tube',bg:'#1b2230',svg:'<g stroke="#e6f0ff" stroke-width="3" fill="none"><path d="M18 20v52a9 9 0 0 0 18 0V20"/><path d="M41 20v52a9 9 0 0 0 18 0V20"/><path d="M64 20v52a9 9 0 0 0 18 0V20"/></g><rect x="19.5" y="56" width="15" height="22" fill="#ff4d4d"/><rect x="42.5" y="44" width="15" height="34" fill="#3fa9ff"/><rect x="65.5" y="60" width="15" height="18" fill="#ffd23f"/>'},
-    {id:'clean',best:null,n:'Karcher',d:'Nettoie la boue au jet',bg:'#cfd6dc',svg:'<rect x="12" y="45" width="76" height="26" rx="8" fill="#e84a3c"/><path d="M12 45h40v26H12z" fill="#5b4128"/><circle cx="28" cy="74" r="8" fill="#1b1d21"/><circle cx="72" cy="74" r="8" fill="#1b1d21"/><path d="M90 15 60 40" stroke="#8fd0ff" stroke-width="4"/>'}
+    {id:'helix',best:'helix',n:'Chute spirale',d:'Fais tomber la balle à travers la tour',bg:'#2b1f4a',svg:'<rect x="43" y="5" width="14" height="92" fill="#d8d2ea"/><ellipse cx="50" cy="30" rx="38" ry="12" fill="#3fd6a0"/><path d="M50 30 88 30A38 12 0 0 1 70 41z" fill="#2b1f4a"/><ellipse cx="50" cy="62" rx="38" ry="12" fill="#3fd6a0"/><path d="M14 62a38 12 0 0 1 20-10L50 62z" fill="#ff3b3b"/><rect x="43" y="18" width="14" height="12" fill="#d8d2ea"/><circle cx="72" cy="22" r="7" fill="#ff4fd8"/>'}
   ]},
   {t:'Puzzle',g:[
     {id:'merge',best:'merge',n:'Fusion 2048',d:'Glisse et fusionne les tuiles',bg:'#faf6ee',svg:'<rect x="14" y="14" width="34" height="34" rx="5" fill="#f2b179"/><rect x="52" y="14" width="34" height="34" rx="5" fill="#edcf72"/><rect x="14" y="52" width="34" height="34" rx="5" fill="#eee4da"/><rect x="52" y="52" width="34" height="34" rx="5" fill="#8f5bff"/><text x="69" y="76" font-size="13" font-weight="900" fill="#fff" text-anchor="middle" font-family="system-ui">2048</text>'},
@@ -78,7 +78,7 @@ const CATS=[
   ]}
 ];
 function get(k,d){try{const v=localStorage.getItem('arcade.'+k);return v==null?d:JSON.parse(v);}catch(e){return d;}}
-const BEST={hole:'Record',merge:'Record',blocks:'Record',knife:'Niveau max',stack:'Hauteur max',defense:'Vague max'};
+const BEST={helix:'Niveau max',hole:'Record',merge:'Record',blocks:'Record',knife:'Niveau max',stack:'Hauteur max',defense:'Vague max'};
 const cats=document.getElementById('cats');cats.style.cssText='display:flex;flex-direction:column;gap:22px';
 for(const c of CATS){
   const s=document.createElement('section');const h=document.createElement('h2');h.textContent=c.t;s.appendChild(h);

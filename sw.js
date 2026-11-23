@@ -1,10 +1,10 @@
 // Offline cache: serve from cache, refresh in the background.
-const VERSION = 'arcade-v2';
+const VERSION = 'arcade-v3';
 const FILES = [
   './', './index.html', './manifest.webmanifest',
   './shared/common.css', './shared/common.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
-  './games/squad-rush.html', './games/hole.html', './games/sort.html', './games/clean.html',
+  './games/squad-rush.html', './games/hole.html', './games/sort.html', './games/helix.html',
   './games/merge.html', './games/blocks.html', './games/knife.html', './games/stack.html',
   './games/tycoon.html', './games/defense.html'
 ];
