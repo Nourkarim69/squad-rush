@@ -18,17 +18,44 @@ const rnd=(a,b)=>a+Math.random()*(b-a);
 let DIFF=0;
 let muted=Arcade.get('helix.mute',false);
 const muteBtn=Arcade.barButton(muted?'🔇':'🔊',()=>{muted=!muted;Arcade.set('helix.mute',muted);muteBtn.textContent=muted?'🔇':'🔊';},'Activer ou couper le son');
-let AC=null;
-function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
-function tone(f0,f1,dur,type,vol,delay=0){if(muted)return;const a=ac();if(!a)return;const t=a.currentTime+delay,o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.008);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g).connect(a.destination);o.start(t);o.stop(t+dur+0.02);}
-const NOTES=[523,587,659,784,880,1047,1175,1319,1568,1760,2093];
+let AC=null,OUT=null;
+function ac(){
+  if(!AC){try{
+    AC=new (window.AudioContext||window.webkitAudioContext)();
+    // master bus with a soft echo for a warm, roomy sound
+    const comp=AC.createDynamicsCompressor();comp.connect(AC.destination);
+    OUT=AC.createGain();OUT.gain.value=0.9;OUT.connect(comp);
+    const dl=AC.createDelay(),fb=AC.createGain(),lp=AC.createBiquadFilter(),wet=AC.createGain();
+    dl.delayTime.value=0.16;fb.gain.value=0.28;lp.type='lowpass';lp.frequency.value=2200;wet.gain.value=0.22;
+    OUT.connect(dl);dl.connect(lp);lp.connect(fb);fb.connect(dl);lp.connect(wet);wet.connect(comp);
+  }catch(e){AC=null;}}
+  if(AC&&AC.state==='suspended')AC.resume();return AC;
+}
+// one soft note: sine body + optional bell partial, smooth attack, exponential decay
+function note(f,{dur=0.4,vol=0.2,delay=0,bend=1,bell=0,type='sine',attack=0.006}={}){
+  if(muted)return;const a=ac();if(!a)return;const t=a.currentTime+delay;
+  const g=a.createGain();g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+attack);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);g.connect(OUT);
+  const o=a.createOscillator();o.type=type;o.frequency.setValueAtTime(f,t);if(bend!==1)o.frequency.exponentialRampToValueAtTime(f*bend,t+Math.min(dur,0.12));o.connect(g);o.start(t);o.stop(t+dur+0.05);
+  if(bell){const g2=a.createGain();g2.gain.setValueAtTime(0.0001,t);g2.gain.exponentialRampToValueAtTime(vol*bell,t+attack);g2.gain.exponentialRampToValueAtTime(0.0001,t+dur*0.45);g2.connect(OUT);
+    const o2=a.createOscillator();o2.type='sine';o2.frequency.value=f*2.76;o2.connect(g2);o2.start(t);o2.stop(t+dur+0.05);}
+}
+// C major pentatonic, rising with the combo
+const SCALE=[523.25,587.33,659.25,783.99,880,1046.5,1174.66,1318.51,1567.98,1760,2093];
+let bounceN=0;
 const sfx={
-  bounce(){tone(240,120,0.12,'sine',0.25);},
-  pass(n){const f=NOTES[Math.min(n-1,NOTES.length-1)];tone(f,f*1.01,0.18,'triangle',0.16);tone(f*2,f*2,0.08,'sine',0.05);},
-  smash(){tone(180,50,0.35,'sawtooth',0.12);tone(900,200,0.25,'square',0.05);},
-  fire(){tone(300,1200,0.3,'sawtooth',0.06);},
-  die(){tone(400,90,0.45,'square',0.1);},
-  win(){[523,659,784,1047,1319].forEach((f,i)=>tone(f,f,0.22,'triangle',0.14,i*0.09));}
+  // soft, round "bloop" like a drop on a drum: quick downward pitch + warm low thump
+  bounce(){const v=[392,440,392,349.23][bounceN++%4];note(v,{dur:0.22,vol:0.22,bend:0.62});note(110,{dur:0.12,vol:0.18,bend:0.7});},
+  // glockenspiel chime climbing the scale
+  pass(n){const f=SCALE[Math.min(n-1,SCALE.length-1)];note(f,{dur:0.55,vol:0.13,bell:0.35});note(f*2,{dur:0.25,vol:0.03,delay:0.02});},
+  // warm low whoosh + sparkly arpeggio
+  smash(){note(98,{dur:0.35,vol:0.25,bend:0.6,type:'triangle'});[1046.5,1318.51,1567.98].forEach((f,i)=>note(f,{dur:0.35,vol:0.07,delay:0.04+i*0.05,bell:0.3}));},
+  // gentle rising shimmer when the ball catches fire
+  fire(){[659.25,783.99,1046.5,1318.51].forEach((f,i)=>note(f,{dur:0.3,vol:0.06,delay:i*0.04,bell:0.25}));},
+  // soft two-note "oh no" instead of a buzzer
+  die(){note(392,{dur:0.35,vol:0.16,type:'triangle'});note(293.66,{dur:0.6,vol:0.16,delay:0.18,type:'triangle',bend:0.9});},
+  // bright bell arpeggio + chord
+  win(){[523.25,659.25,783.99,1046.5,1318.51].forEach((f,i)=>note(f,{dur:0.6,vol:0.11,delay:i*0.08,bell:0.3}));
+    [523.25,659.25,783.99].forEach(f=>note(f,{dur:1.2,vol:0.06,delay:0.45,attack:0.03}));}
 };
 let floats=[],stars=[],pulse=0;
 const grav=()=>1500+900*DIFF, bounceV=()=>-Math.sqrt(2*grav()*geo().SP*(1.1-0.5*DIFF));
@@ -231,7 +258,7 @@ function frame(dt){
     p.life-=dt;
     if(p.k==='ring'){const k=1-p.life/p.max,sy=p.y-cam+g.HY,r=g.R*(1+k*0.6);ctx.strokeStyle='rgba('+p.col+','+(1-k)*0.8+')';ctx.lineWidth=6*(1-k)+1;ctx.beginPath();ctx.ellipse(g.cx,sy,r,r*TILT,0,0,TAU);ctx.stroke();continue;}
     if(p.k==='splash'){const k=1-p.life/p.max,rm=(g.r0+g.R)/2,sy=p.y-cam+g.HY+rm*TILT,r=g.br*(1+k*3);ctx.strokeStyle=pal.ball;ctx.globalAlpha=1-k;ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(g.cx,sy,r,r*0.4,0,0,TAU);ctx.stroke();ctx.globalAlpha=1;continue;}
-    if(p.k==='flame'){p.y-=60*dt;const k=p.life/p.max,sy=p.y-cam+g.HY;ctx.globalCompositeOperation='lighter';ctx.fillStyle='rgba(255,'+(120+k*100|0)+',30,'+k*0.7+')';ctx.beginPath();ctx.arc(p.x,sy,p.r*k,0,TAU);ctx.fill();ctx.globalCompositeOperation='source-over';continue;}
+    if(p.k==='flame'){p.y-=60*dt;const k=p.life/p.max,sy=p.y-cam+g.HY;ctx.globalCompositeOperation='lighter';ctx.fillStyle='rgba(255,'+(120+k*100|0)+',30,'+k*0.7+')';ctx.beginPath();ctx.arc(p.x,sy,Math.max(0,p.r*k),0,TAU);ctx.fill();ctx.globalCompositeOperation='source-over';continue;}
     if(p.k==='seg'){p.a+=p.va*dt;p.dr+=p.vr*dt;p.vy+=900*dt;p.y+=p.vy*dt;
       const sy=p.y-cam+g.HY;ctx.globalAlpha=Math.max(0,p.life/0.9);ctx.fillStyle=p.col;
       const a0=p.a-A/2,cx=g.cx+Math.cos(p.a)*p.dr;segPath(cx,sy+Math.sin(p.a)*p.dr*TILT,g.r0,g.R,a0,a0+A);ctx.fill();ctx.globalAlpha=1;}
