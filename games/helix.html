@@ -15,6 +15,8 @@ Arcade.bar('Chute spirale');
 const cv=document.getElementById('c'),V=Arcade.canvas(cv),ctx=V.ctx;
 const TAU=Math.PI*2,NS=12,A=TAU/NS,TILT=0.36;
 const rnd=(a,b)=>a+Math.random()*(b-a);
+let DIFF=0;
+const grav=()=>1500+900*DIFF, bounceV=()=>-Math.sqrt(2*grav()*geo().SP*(1.1-0.5*DIFF));
 let level=Arcade.get('helix.level',1);
 let discs,ball,rot,cam,state,score,streak,next,parts,splats,trail,shake,flash,pal,tt,banner;
 
@@ -26,18 +28,25 @@ function palette(l){
 function geo(){const R=Math.min(V.W*0.4,175);return{R,r0:R*0.28,SP:R*0.68,cx:V.W/2,HY:V.H*0.3,br:R*0.085};}
 function newLevel(){
   pal=palette(level);
-  const N=Math.min(16+level*2,44);discs=[];
+  // difficulty 0 (level 1) -> 1 (level 15+)
+  DIFF=Math.min(1,(level-1)/14);
+  const N=Math.min(10+level*2,44);discs=[];
   for(let i=0;i<N;i++){
     const segs=new Array(NS).fill(0);
-    const gl=level<3?3:level<7?2:Math.random()<.5?1:2,g=Math.floor(Math.random()*NS);
+    // gap size: big at first, smaller later
+    const gl=level<=2?4:level<=4?3:level<=8?(Math.random()<.5?2:3):level<=12?2:(Math.random()<.5?1:2);
+    const g=Math.floor(Math.random()*NS);
     for(let k=0;k<gl;k++)segs[(g+k)%NS]=1;
-    if(i>0){
-      let reds=Math.min(6,Math.floor(level/2)+(i>4?1:0)+(Math.random()<.3?1:0));
-      for(let tries=0;reds>0&&tries<50;tries++){const k=Math.floor(Math.random()*NS);if(segs[k]===0){segs[k]=2;reds--;}}
+    // red zones: none on level 1, few early, more later; first discs are always safe
+    const safe=level<5?3:1;
+    if(i>=safe&&level>1){
+      let reds=Math.floor(DIFF*5+Math.random()*(1+DIFF*1.5));
+      if(level<=3&&Math.random()<.5)reds=0;
+      for(let tries=0;reds>0&&tries<50;tries++){const k=Math.floor(Math.random()*NS);if(segs[k]===0&&segs[(k+1)%NS]!==1&&segs[(k+NS-1)%NS]!==1){segs[k]=2;reds--;}}
     }
-    // second gap on long levels
-    if(level>4&&Math.random()<.25){const k=Math.floor(Math.random()*NS);if(segs[k]===0)segs[k]=1;}
-    discs.push({segs,broken:0,spin:level>=6&&i>3&&Math.random()<.15?(Math.random()<.5?-1:1)*0.9:0,off:0});
+    if(level>6&&Math.random()<.2){const k=Math.floor(Math.random()*NS);if(segs[k]===0)segs[k]=1;}
+    const spin=level>=7&&i>3&&Math.random()<0.08+DIFF*0.2?(Math.random()<.5?-1:1)*(0.5+DIFF*0.8):0;
+    discs.push({segs,broken:0,spin,off:0});
   }
   discs.push({segs:new Array(NS).fill(3),broken:0,goal:true,spin:0,off:0});
   ball={y:-60,vy:0,sq:0};rot=0;cam=-200;state='play';score=0;streak=0;next=0;parts=[];splats=discs.map(()=>[]);trail=[];shake=0;flash=0;tt=0;
@@ -66,10 +75,10 @@ function land(){
     if(seg===3){ball.y=y;state='win';win();return;}
     if(seg===1){streak++;score+=streak;breakDisc(next,false);next++;continue;}
     if(streak>=3){ // fire ball smashes anything
-      score+=streak*2;breakDisc(next,true);flash=0.25;shake=0.25;streak=0;next++;ball.vy=-Math.sqrt(2*2200*g.SP*0.55);return;
+      score+=streak*2;breakDisc(next,true);flash=0.25;shake=0.25;streak=0;next++;ball.vy=bounceV();return;
     }
     if(seg===2){ball.y=y;state='dead';die();return;}
-    ball.y=y;ball.vy=-Math.sqrt(2*2200*g.SP*0.55);ball.sq=1;streak=0;
+    ball.y=y;ball.vy=bounceV();ball.sq=1;streak=0;
     splats[next].push({a:ballAngle(d),s:rnd(.8,1.2)});if(splats[next].length>6)splats[next].shift();
     for(let j=0;j<6;j++)parts.push({k:'dot',x:g.cx+rnd(-6,6),y:y+(g.r0+g.R)/2*TILT,vx:rnd(-120,120),vy:rnd(-160,-40),life:.35,col:pal.ball});
     return;
@@ -167,7 +176,7 @@ function frame(dt){
   tt+=dt;const g=geo(),W=V.W,H=V.H;
   if(state==='play'){
     if(keys.ArrowLeft)rot-=3*dt;if(keys.ArrowRight)rot+=3*dt;
-    ball.vy+=2200*dt;if(ball.vy>1400)ball.vy=1400;ball.y+=ball.vy*dt;ball.sq=Math.max(0,ball.sq-dt*6);
+    ball.vy+=grav()*dt;if(ball.vy>1400)ball.vy=1400;ball.y+=ball.vy*dt;ball.sq=Math.max(0,ball.sq-dt*6);
     land();
   }
   for(const d of discs)if(d.spin)d.off+=d.spin*dt;
