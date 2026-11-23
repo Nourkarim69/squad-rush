@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#12151a">
+<title>Tour infinie</title>
+<link rel="stylesheet" href="../shared/common.css">
+</head>
+<body>
+<canvas class="game" id="c"></canvas>
+<script src="../shared/common.js"></script>
+<script>
+Arcade.bar('Tour infinie');
+const cv=document.getElementById('c'),V=Arcade.canvas(cv),ctx=V.ctx;
+const BH=22,SIZE=110,RANGE=170;
+let stack,cur,debris,camY,hue0,state,combo,score,tt,waves=[];
+function newGame(){
+  hue0=Math.random()*360;
+  stack=[{x:0,z:0,w:SIZE,d:SIZE,y:-BH*6,h:BH*6,hue:hue0}];
+  debris=[];camY=0;combo=0;score=0;tt=0;state='play';waves=[];spawn();Arcade.hidePanel();
+}
+function topB(){return stack[stack.length-1];}
+function spawn(){
+  const t=topB(),axis=stack.length%2?'x':'z';
+  cur={x:t.x,z:t.z,w:t.w,d:t.d,y:t.y+t.h,h:BH,hue:(hue0+stack.length*9)%360,axis,dir:1,p:-RANGE,speed:150+Math.min(score,60)*3.5};
+  cur[axis]=t[axis]-RANGE;
+}
+function drop(){
+  if(state!=='play')return;
+  const t=topB(),a=cur.axis,sz=a==='x'?'w':'d';
+  const delta=cur[a]-t[a],overlap=cur[sz]-Math.abs(delta);
+  if(overlap<=0){debris.push({...cur,vy:0,life:2});cur=null;state='over';Arcade.vibrate(150);setTimeout(gameOver,800);return;}
+  if(Math.abs(delta)<5){
+    cur[a]=t[a];combo++;
+    if(combo>=3&&cur[sz]<SIZE){cur[sz]=Math.min(SIZE,cur[sz]+8);}
+    waves.push({x:cur.x,z:cur.z,w:cur.w,d:cur.d,y:cur.y,t:0});Arcade.vibrate(25);
+  }else{
+    combo=0;
+    const cut={...cur,vy:0,life:2};
+    cut[sz]=Math.abs(delta);
+    // place cut piece on the overhanging side
+    cut[a]=delta>0?(t[a]+t[sz]/2)+Math.abs(delta)/2:(t[a]-t[sz]/2)-Math.abs(delta)/2;
+    debris.push(cut);
+    cur[sz]=overlap;cur[a]=t[a]+delta/2;Arcade.vibrate(10);
+  }
+  stack.push({x:cur.x,z:cur.z,w:cur.w,d:cur.d,y:cur.y,h:cur.h,hue:cur.hue});
+  score++;spawn();
+}
+function gameOver(){
+  const gain=Arcade.addCoins(score/2),best=Arcade.best('stack',score);
+  Arcade.panel({title:'La tour est tombée',gain,text:'Hauteur : '+score+' · Record : '+best,
+    buttons:[{label:'Rejouer',onClick:newGame},{label:'Menu',onClick:Arcade.toMenu}]});
+}
+cv.addEventListener('pointerdown',drop);
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();drop();}});
+
+function proj(x,y,z,S,cx,cy){return{X:cx+(x-z)*0.866*S,Y:cy+(x+z)*0.5*S-(y-camY)*S};}
+function box(b,S,cx,cy,alpha){
+  const x0=b.x-b.w/2,x1=b.x+b.w/2,z0=b.z-b.d/2,z1=b.z+b.d/2,y0=b.y,y1=b.y+b.h;
+  const P=(x,y,z)=>proj(x,y,z,S,cx,cy);
+  const t=[P(x0,y1,z0),P(x1,y1,z0),P(x1,y1,z1),P(x0,y1,z1)];
+  const fx=[P(x1,y1,z0),P(x1,y1,z1),P(x1,y0,z1),P(x1,y0,z0)];
+  const fz=[P(x0,y1,z1),P(x1,y1,z1),P(x1,y0,z1),P(x0,y0,z1)];
+  ctx.globalAlpha=alpha;
+  const poly=(pts,c)=>{ctx.fillStyle=c;ctx.beginPath();ctx.moveTo(pts[0].X,pts[0].Y);for(const p of pts.slice(1))ctx.lineTo(p.X,p.Y);ctx.closePath();ctx.fill();};
+  poly(fx,`hsl(${b.hue},55%,42%)`);poly(fz,`hsl(${b.hue},55%,52%)`);poly(t,`hsl(${b.hue},65%,66%)`);
+  ctx.globalAlpha=1;
+}
+function frame(dt){
+  tt+=dt;
+  const W=V.W,H=V.H,S=Math.min(W,520)/340,cx=W/2,cy=H*0.62;
+  if(cur&&state==='play'){
+    const a=cur.axis,t=topB();
+    cur[a]+=cur.dir*cur.speed*dt;
+    if(cur[a]>t[a]+RANGE){cur[a]=t[a]+RANGE;cur.dir=-1;}
+    if(cur[a]<t[a]-RANGE){cur[a]=t[a]-RANGE;cur.dir=1;}
+  }
+  const targetCam=topB().y+BH-H*0.18/S;
+  camY+=(Math.max(0,targetCam)-camY)*Math.min(1,dt*4);
+  const hue=(hue0+stack.length*9)%360;
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,`hsl(${hue},45%,72%)`);g.addColorStop(1,`hsl(${(hue+40)%360},40%,40%)`);
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  for(const b of stack)if((b.y+b.h-camY)*S>-H)box(b,S,cx,cy,1);
+  for(const w of waves){w.t+=dt;const k=w.t/0.5,gr=k*20;
+    ctx.strokeStyle='rgba(255,255,255,'+(1-k)+')';ctx.lineWidth=3;
+    const P=(x,z)=>proj(x,w.y,z,S,cx,cy);
+    const pts=[P(w.x-w.w/2-gr,w.z-w.d/2-gr),P(w.x+w.w/2+gr,w.z-w.d/2-gr),P(w.x+w.w/2+gr,w.z+w.d/2+gr),P(w.x-w.w/2-gr,w.z+w.d/2+gr)];
+    ctx.beginPath();ctx.moveTo(pts[0].X,pts[0].Y);for(const p of pts.slice(1))ctx.lineTo(p.X,p.Y);ctx.closePath();ctx.stroke();}
+  waves=waves.filter(w=>w.t<0.5);
+  if(cur)box(cur,S,cx,cy,1);
+  for(const d of debris){d.vy+=900*dt;d.y-=d.vy*dt;d.life-=dt;box(d,S,cx,cy,Math.max(0,Math.min(1,d.life)));}
+  debris=debris.filter(d=>d.life>0);
+  ctx.fillStyle='#fff';ctx.font='900 54px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.shadowColor='rgba(0,0,0,.25)';ctx.shadowBlur=8;ctx.fillText(score,W/2,60);ctx.shadowBlur=0;
+  if(combo>=2){ctx.font='800 18px system-ui';ctx.fillText('Parfait x'+combo,W/2,100);}
+  if(state==='play'&&score===0){ctx.font='700 16px system-ui';ctx.fillText('Touche pour poser le bloc',W/2,H-40);}
+}
+newGame();
+Arcade.loop(frame);
+</script>
+</body>
+</html>

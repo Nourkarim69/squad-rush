@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#12151a">
+<title>Bloc puzzle</title>
+<link rel="stylesheet" href="../shared/common.css">
+</head>
+<body>
+<canvas class="game" id="c"></canvas>
+<script src="../shared/common.js"></script>
+<script>
+Arcade.bar('Bloc puzzle');
+const cv=document.getElementById('c'),V=Arcade.canvas(cv),ctx=V.ctx;
+const N=8;
+const SHAPES=[
+  [[1]],[[1,1]],[[1],[1]],[[1,1,1]],[[1],[1],[1]],[[1,1,1,1]],[[1],[1],[1],[1]],[[1,1,1,1,1]],[[1],[1],[1],[1],[1]],
+  [[1,1],[1,1]],[[1,1,1],[1,1,1],[1,1,1]],
+  [[1,0],[1,0],[1,1]],[[1,1,1],[1,0,0]],[[1,1],[0,1],[0,1]],[[0,0,1],[1,1,1]],
+  [[1,1],[1,0]],[[1,1],[0,1]],[[1,0],[1,1]],[[0,1],[1,1]],
+  [[1,1,1],[0,1,0]],[[0,1,1],[1,1,0]],[[1,1,0],[0,1,1]]
+];
+const COLS=['#ff5a4f','#3fa9ff','#ffd23f','#3ddc84','#b36bff','#ff8c2e','#35e0d0','#ff66c4'];
+let grid,tray,score,combo,drag=null,L={},flashes=[],floats=[],over=false;
+function newGame(){
+  grid=Array.from({length:N},()=>Array(N).fill(null));score=0;combo=0;over=false;flashes=[];floats=[];refill();
+}
+function refill(){tray=[0,1,2].map(()=>({sh:SHAPES[Math.floor(Math.random()*SHAPES.length)],c:COLS[Math.floor(Math.random()*COLS.length)]}));}
+function fits(sh,gx,gy){
+  for(let y=0;y<sh.length;y++)for(let x=0;x<sh[0].length;x++)if(sh[y][x]){
+    const X=gx+x,Y=gy+y;if(X<0||Y<0||X>=N||Y>=N||grid[Y][X])return false;}
+  return true;
+}
+function anyFit(sh){for(let y=0;y<N;y++)for(let x=0;x<N;x++)if(fits(sh,x,y))return true;return false;}
+function linesAfter(sh,gx,gy){
+  const g=grid.map(r=>r.slice());
+  for(let y=0;y<sh.length;y++)for(let x=0;x<sh[0].length;x++)if(sh[y][x])g[gy+y][gx+x]='x';
+  const rows=[],cols=[];
+  for(let i=0;i<N;i++){if(g[i].every(v=>v))rows.push(i);if(g.every(r=>r[i]))cols.push(i);}
+  return{rows,cols};
+}
+function layout(){
+  const W=V.W,H=V.H;
+  const cs=Math.floor(Math.min((W-24)/N,(H*0.6)/N));
+  L={cs,x0:(W-cs*N)/2,y0:62,trayY:62+cs*N+(H-62-cs*N)/2};
+}
+function slotX(i){return V.W*(i+0.5)/3;}
+function shapeSize(sh,cs){return{w:sh[0].length*cs,h:sh.length*cs};}
+function drawCell(x,y,s,c,a=1){
+  ctx.globalAlpha=a;ctx.fillStyle=c;ctx.beginPath();ctx.roundRect(x+1,y+1,s-2,s-2,s*0.18);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.25)';ctx.fillRect(x+s*0.15,y+s*0.12,s*0.7,s*0.14);
+  ctx.fillStyle='rgba(0,0,0,.15)';ctx.fillRect(x+s*0.15,y+s*0.78,s*0.7,s*0.1);ctx.globalAlpha=1;
+}
+function drawShape(sh,x,y,cs,c,a){for(let j=0;j<sh.length;j++)for(let i=0;i<sh[0].length;i++)if(sh[j][i])drawCell(x+i*cs,y+j*cs,cs,c,a);}
+function local(e){const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+cv.addEventListener('pointerdown',e=>{
+  if(over)return;const p=local(e);
+  if(p.y<L.trayY-L.cs*2.2)return;
+  const i=Math.floor(p.x/(V.W/3));if(!tray[i])return;
+  drag={i,x:p.x,y:p.y};cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove',e=>{if(drag){const p=local(e);drag.x=p.x;drag.y=p.y;}});
+function dragPos(){
+  const P=tray[drag.i],sz=shapeSize(P.sh,L.cs);
+  const px=drag.x-sz.w/2,py=drag.y-sz.h-L.cs*1.2;
+  return{px,py,gx:Math.round((px-L.x0)/L.cs),gy:Math.round((py-L.y0)/L.cs)};
+}
+cv.addEventListener('pointerup',()=>{
+  if(!drag)return;const P=tray[drag.i],d=dragPos();
+  if(fits(P.sh,d.gx,d.gy))place(P,d.gx,d.gy,drag.i);
+  drag=null;
+});
+cv.addEventListener('pointercancel',()=>drag=null);
+function place(P,gx,gy,i){
+  let cells=0;
+  for(let y=0;y<P.sh.length;y++)for(let x=0;x<P.sh[0].length;x++)if(P.sh[y][x]){grid[gy+y][gx+x]=P.c;cells++;}
+  score+=cells;tray[i]=null;
+  const R=[],C=[];
+  for(let k=0;k<N;k++){if(grid[k].every(v=>v))R.push(k);if(grid.every(r=>r[k]))C.push(k);}
+  const n=R.length+C.length;
+  if(n){
+    combo++;
+    for(const r of R)for(let x=0;x<N;x++)flashes.push({x,y:r,c:grid[r][x],t:0.45});
+    for(const c of C)for(let y=0;y<N;y++)flashes.push({x:c,y,c:grid[y][c],t:0.45});
+    for(const r of R)for(let x=0;x<N;x++)grid[r][x]=null;
+    for(const c of C)for(let y=0;y<N;y++)grid[y][c]=null;
+    const pts=10*n*n*combo;score+=pts;
+    floats.push({txt:(n>1?n+' lignes ! ':'')+'+'+pts+(combo>1?'  combo x'+combo:''),life:1.2});
+    Arcade.vibrate(n>1?[20,30,20]:20);
+  }else combo=0;
+  if(tray.every(t=>!t))refill();
+  if(!tray.some(t=>t&&anyFit(t.sh))){over=true;setTimeout(gameOver,600);}
+}
+function gameOver(){
+  const gain=Arcade.addCoins(score/35),best=Arcade.best('blocks',score);
+  Arcade.panel({title:'Plus de place !',gain,text:'Score : '+score+' · Record : '+best,
+    buttons:[{label:'Rejouer',onClick:newGame},{label:'Menu',onClick:Arcade.toMenu}]});
+}
+function frame(dt){
+  layout();const W=V.W,H=V.H,{cs,x0,y0}=L;
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#24305a');g.addColorStop(1,'#151a33');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#fff';ctx.font='900 26px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(score,W/2,32);
+  ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.roundRect(x0-6,y0-6,cs*N+12,cs*N+12,12);ctx.fill();
+  let ghost=null,clear=null;
+  if(drag){const P=tray[drag.i],d=dragPos();if(fits(P.sh,d.gx,d.gy)){ghost={P,...d};clear=linesAfter(P.sh,d.gx,d.gy);}}
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const v=grid[y][x],px=x0+x*cs,py=y0+y*cs;
+    if(v){const hl=clear&&(clear.rows.includes(y)||clear.cols.includes(x));drawCell(px,py,cs,hl&&ghost?ghost.P.c:v);}
+    else{ctx.fillStyle='rgba(255,255,255,.06)';ctx.beginPath();ctx.roundRect(px+1,py+1,cs-2,cs-2,cs*0.15);ctx.fill();}
+  }
+  if(ghost)drawShape(ghost.P.sh,x0+ghost.gx*cs,y0+ghost.gy*cs,cs,ghost.P.c,0.4);
+  for(const f of flashes){f.t-=dt;const k=Math.max(0,f.t/0.45);const s=cs*(0.4+k*0.6);
+    drawCell(x0+f.x*cs+(cs-s)/2,y0+f.y*cs+(cs-s)/2,s,'#fff',k);}
+  flashes=flashes.filter(f=>f.t>0);
+  tray.forEach((P,i)=>{
+    if(!P||(drag&&drag.i===i))return;
+    const s=cs*0.55,sz=shapeSize(P.sh,s),ok=anyFit(P.sh);
+    drawShape(P.sh,slotX(i)-sz.w/2,L.trayY-sz.h/2,s,ok?P.c:'#555c66',1);
+  });
+  if(drag){const P=tray[drag.i],d=dragPos();drawShape(P.sh,d.px,d.py,cs,P.c,0.95);}
+  for(const f of floats){f.life-=dt;ctx.globalAlpha=Math.min(1,f.life*2);ctx.fillStyle='#ffd23f';ctx.font='900 24px system-ui';
+    ctx.fillText(f.txt,W/2,y0+cs*N/2-(1.2-f.life)*50);}
+  ctx.globalAlpha=1;floats=floats.filter(f=>f.life>0);
+}
+newGame();
+Arcade.loop(frame);
+</script>
+</body>
+</html>

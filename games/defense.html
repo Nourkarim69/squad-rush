@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#12151a">
+<title>Dernière tour</title>
+<link rel="stylesheet" href="../shared/common.css">
+<style>
+:root{--panel-h:118px}
+.game{height:calc(100% - var(--bar) - var(--safe-top) - var(--panel-h) - var(--safe-bot));bottom:auto}
+.ups{position:fixed;left:0;right:0;bottom:0;height:calc(var(--panel-h) + var(--safe-bot));padding:10px max(10px,env(safe-area-inset-right,0px)) calc(10px + var(--safe-bot)) max(10px,env(safe-area-inset-left,0px));
+  background:var(--panel);display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.ups button{font:inherit;border:0;border-radius:12px;background:var(--panel2);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;padding:4px;min-width:0}
+.ups button b{font-size:13px}
+.ups button span{font-size:11px;color:var(--muted)}
+.ups button em{font-style:normal;font-weight:900;color:var(--accent);font-size:14px}
+.ups button:disabled{opacity:.5;cursor:not-allowed}
+</style>
+</head>
+<body>
+<canvas class="game" id="c"></canvas>
+<div class="ups">
+  <button id="u0"></button><button id="u1"></button><button id="u2"></button><button id="u3"></button>
+</div>
+<script src="../shared/common.js"></script>
+<script>
+Arcade.bar('Dernière tour');
+const cv=document.getElementById('c'),V=Arcade.canvas(cv),ctx=V.ctx;
+const UP=[
+  {n:'Dégâts',base:10,k:1.45},{n:'Cadence',base:12,k:1.5},{n:'Portée',base:15,k:1.6},{n:'Murs',base:12,k:1.5}
+];
+let G;
+function newGame(){
+  G={cash:0,wave:0,hp:100,maxhp:100,lv:[0,0,0,0],enemies:[],shots:[],parts:[],toSpawn:0,spawnT:0,pause:1.5,cool:0,angle:-Math.PI/2,over:false,kills:0};
+  Arcade.hidePanel();render();
+}
+const dmg=()=>4*Math.pow(1.35,G.lv[0]);
+const rate=()=>2*Math.pow(1.18,G.lv[1]);
+const range=()=>Math.min(V.W,V.H)*(0.3+G.lv[2]*0.035);
+function upCost(i){return Math.round(UP[i].base*Math.pow(UP[i].k,G.lv[i]));}
+function upLabel(i){
+  const l=G.lv[i];
+  const v=[Math.round(dmg()),rate().toFixed(1)+'/s',Math.round(range()),G.maxhp+' PV'][i];
+  return `<b>${UP[i].n}</b><span>${v}</span><em>${upCost(i)} $</em>`;
+}
+function render(){for(let i=0;i<4;i++){const b=document.getElementById('u'+i);b.innerHTML=upLabel(i);b.disabled=G.cash<upCost(i)||G.over;}}
+for(let i=0;i<4;i++)document.getElementById('u'+i).onclick=()=>{
+  const c=upCost(i);if(G.cash<c||G.over)return;G.cash-=c;G.lv[i]++;
+  if(i===3){G.maxhp+=25;G.hp=Math.min(G.maxhp,G.hp+40);}
+  Arcade.vibrate(8);render();
+};
+function nextWave(){G.wave++;G.toSpawn=6+G.wave*3;G.spawnT=0;if(G.wave%10===0)G.boss=true;}
+function spawnEnemy(){
+  const W=V.W,H=V.H,a=Math.random()*Math.PI*2,R=Math.hypot(W,H)/2+30;
+  const w=G.wave,hpBase=6*Math.pow(1.17,w);
+  let type='n';
+  const r=Math.random();
+  if(w>=3&&r<0.25)type='f';else if(w>=5&&r<0.4)type='t';
+  if(G.boss&&G.toSpawn===1)type='b';
+  const T={n:{hp:1,sp:42,r:10,c:'#ff5a4f',dmg:8,cash:1},f:{hp:0.5,sp:85,r:8,c:'#ffd23f',dmg:5,cash:1},t:{hp:4,sp:24,r:15,c:'#b36bff',dmg:20,cash:3},b:{hp:40,sp:18,r:26,c:'#ff2d7a',dmg:60,cash:40}}[type];
+  G.enemies.push({x:W/2+Math.cos(a)*R,y:H/2+Math.sin(a)*R,hp:hpBase*T.hp,max:hpBase*T.hp,sp:T.sp*(1+w*0.01),r:T.r,c:T.c,dmg:T.dmg,cash:Math.ceil(T.cash*(1+w*0.15)),type,hit:0});
+}
+function update(dt){
+  if(G.over)return;
+  const W=V.W,H=V.H,cx=W/2,cy=H/2;
+  if(G.toSpawn<=0&&!G.enemies.length){G.pause-=dt;if(G.pause<=0){G.pause=2.5;if(G.wave>0){G.cash+=5+G.wave*2;render();}G.boss=false;nextWave();}}
+  if(G.toSpawn>0){G.spawnT-=dt;if(G.spawnT<=0){spawnEnemy();G.toSpawn--;G.spawnT=Math.max(0.18,0.9-G.wave*0.03);}}
+  const R=range();
+  let target=null,bd=1e9;
+  for(const e of G.enemies){const d=Math.hypot(e.x-cx,e.y-cy);if(d<R&&d<bd){bd=d;target=e;}}
+  G.cool-=dt;
+  if(target){
+    const ta=Math.atan2(target.y-cy,target.x-cx);let da=ta-G.angle;while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
+    G.angle+=da*Math.min(1,dt*14);
+    if(G.cool<=0){G.cool=1/rate();G.shots.push({x:cx+Math.cos(G.angle)*26,y:cy+Math.sin(G.angle)*26,t:target,sp:620});}
+  }
+  for(const s of G.shots){
+    if(s.t.dead){s.dead=true;continue;}
+    const dx=s.t.x-s.x,dy=s.t.y-s.y,d=Math.hypot(dx,dy);
+    if(d<s.t.r+4){s.dead=true;s.t.hp-=dmg();s.t.hit=0.1;
+      for(let i=0;i<3;i++)G.parts.push({x:s.x,y:s.y,vx:(Math.random()-0.5)*160,vy:(Math.random()-0.5)*160,life:0.3,c:'#ffd27a'});
+      if(s.t.hp<=0&&!s.t.dead){s.t.dead=true;G.cash+=s.t.cash;G.kills++;render();
+        for(let i=0;i<12;i++)G.parts.push({x:s.t.x,y:s.t.y,vx:(Math.random()-0.5)*260,vy:(Math.random()-0.5)*260,life:0.5,c:s.t.c});}
+    }else{s.x+=dx/d*s.sp*dt;s.y+=dy/d*s.sp*dt;}
+  }
+  G.shots=G.shots.filter(s=>!s.dead);
+  for(const e of G.enemies){
+    if(e.dead)continue;
+    const dx=cx-e.x,dy=cy-e.y,d=Math.hypot(dx,dy);e.hit=Math.max(0,e.hit-dt);
+    if(d<30+e.r){e.dead=true;G.hp-=e.dmg;Arcade.vibrate(30);
+      for(let i=0;i<10;i++)G.parts.push({x:e.x,y:e.y,vx:(Math.random()-0.5)*200,vy:(Math.random()-0.5)*200,life:0.4,c:'#fff'});
+      if(G.hp<=0){G.hp=0;gameOver();}}
+    else{e.x+=dx/d*e.sp*dt;e.y+=dy/d*e.sp*dt;}
+  }
+  G.enemies=G.enemies.filter(e=>!e.dead);
+  for(const p of G.parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;}
+  G.parts=G.parts.filter(p=>p.life>0);
+}
+function gameOver(){
+  G.over=true;render();
+  const gain=Arcade.addCoins(G.wave*3),best=Arcade.best('defense',G.wave);
+  setTimeout(()=>Arcade.panel({title:'La tour est tombée',gain,text:'Vague '+G.wave+' atteinte · '+G.kills+' ennemis vaincus · Record : vague '+best,
+    buttons:[{label:'Rejouer',onClick:newGame},{label:'Menu',onClick:Arcade.toMenu}]}),600);
+}
+function draw(){
+  const W=V.W,H=V.H,cx=W/2,cy=H/2;
+  ctx.fillStyle='#1a2a22';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=1;
+  for(let x=0;x<W;x+=32){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=32){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.fillStyle='rgba(61,220,132,.06)';ctx.strokeStyle='rgba(61,220,132,.35)';ctx.setLineDash([6,6]);
+  ctx.beginPath();ctx.arc(cx,cy,range(),0,7);ctx.fill();ctx.stroke();ctx.setLineDash([]);
+  // base
+  ctx.fillStyle='#3a4a5a';ctx.beginPath();ctx.arc(cx,cy,30,0,7);ctx.fill();
+  ctx.fillStyle='#5b7085';ctx.beginPath();ctx.arc(cx,cy,20,0,7);ctx.fill();
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(G.angle);ctx.fillStyle='#c9d6e3';ctx.fillRect(4,-5,26,10);ctx.restore();
+  ctx.fillStyle='#ffb020';ctx.beginPath();ctx.arc(cx,cy,7,0,7);ctx.fill();
+  // hp ring
+  ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=5;ctx.beginPath();ctx.arc(cx,cy,36,0,7);ctx.stroke();
+  ctx.strokeStyle=G.hp/G.maxhp>0.35?'#3ddc84':'#ff5a4f';ctx.beginPath();ctx.arc(cx,cy,36,-Math.PI/2,-Math.PI/2+Math.PI*2*G.hp/G.maxhp);ctx.stroke();
+  for(const e of G.enemies){
+    ctx.fillStyle=e.hit>0?'#fff':e.c;ctx.beginPath();
+    if(e.type==='t'||e.type==='b'){ctx.rect(e.x-e.r,e.y-e.r,e.r*2,e.r*2);}else{ctx.arc(e.x,e.y,e.r,0,7);}ctx.fill();
+    if(e.hp<e.max){ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(e.x-e.r,e.y-e.r-8,e.r*2,4);ctx.fillStyle='#3ddc84';ctx.fillRect(e.x-e.r,e.y-e.r-8,e.r*2*e.hp/e.max,4);}
+  }
+  ctx.fillStyle='#ffe07a';for(const s of G.shots){ctx.beginPath();ctx.arc(s.x,s.y,3.5,0,7);ctx.fill();}
+  for(const p of G.parts){ctx.globalAlpha=Math.min(1,p.life*3);ctx.fillStyle=p.c;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
+  ctx.fillStyle='#fff';ctx.font='900 18px system-ui';ctx.textBaseline='middle';
+  ctx.textAlign='left';ctx.fillText('Vague '+G.wave,14,24);
+  ctx.textAlign='right';ctx.fillStyle='#7dff9b';ctx.fillText(Math.floor(G.cash)+' $',W-14,24);
+  if(G.toSpawn<=0&&!G.enemies.length&&!G.over){ctx.textAlign='center';ctx.fillStyle='#fff';ctx.font='800 20px system-ui';
+    ctx.fillText((G.wave+1)%10===0?'Un boss arrive…':'Vague '+(G.wave+1)+' dans '+Math.ceil(G.pause)+'…',W/2,H*0.2);}
+}
+newGame();
+Arcade.panel({title:'Dernière tour',text:'Ta tour tire toute seule sur les monstres qui arrivent de partout. Utilise l\'argent des victimes pour l\'améliorer en bas de l\'écran.',
+  buttons:[{label:'Jouer',onClick:()=>{}},{label:'Menu',onClick:Arcade.toMenu}]});
+Arcade.loop(dt=>{if(document.getElementById('arcOv')&&!document.getElementById('arcOv').hidden)return draw();update(dt);draw();});
+</script>
+</body>
+</html>

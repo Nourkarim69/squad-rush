@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#12151a">
+<title>Empire idle</title>
+<link rel="stylesheet" href="../shared/common.css">
+<style>
+body{touch-action:manipulation}
+.wrap{position:fixed;inset:calc(var(--bar) + var(--safe-top)) 0 0 0;overflow-y:auto;touch-action:pan-y;
+  padding:12px max(12px,env(safe-area-inset-right,0px)) calc(24px + var(--safe-bot)) max(12px,env(safe-area-inset-left,0px))}
+.money{position:sticky;top:-12px;z-index:2;background:var(--bg);padding:10px 0 12px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.money b{font-size:30px;font-weight:900;color:#7dff9b;font-variant-numeric:tabular-nums}
+.money small{display:block;color:var(--muted);font-size:12px}
+.seg{display:flex;background:var(--panel);border-radius:10px;padding:3px}
+.seg button{font:inherit;font-weight:800;border:0;background:none;color:var(--muted);padding:8px 12px;border-radius:8px;cursor:pointer}
+.seg button.on{background:var(--panel2);color:var(--ink)}
+.biz{display:grid;grid-template-columns:62px 1fr;gap:10px;background:var(--panel);border-radius:14px;padding:10px;margin-bottom:10px}
+.biz.locked{opacity:.55}
+.ic{width:62px;height:62px;border-radius:14px;display:grid;place-items:center;font-size:30px;position:relative;cursor:pointer;border:0;font-family:inherit}
+.ic .lv{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);background:#000;color:#fff;font-size:11px;font-weight:800;padding:1px 7px;border-radius:8px;white-space:nowrap}
+.info{min-width:0;display:flex;flex-direction:column;gap:6px}
+.top{display:flex;justify-content:space-between;gap:8px;font-weight:800;font-size:15px}
+.top span:last-child{color:#7dff9b;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bar{height:16px;background:var(--bg);border-radius:8px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3ddc84,#a6ff6b);border-radius:8px;white-space:nowrap}
+.row{display:flex;gap:6px}
+.row button{flex:1;font:inherit;font-weight:800;font-size:13px;border:0;border-radius:9px;padding:8px 6px;cursor:pointer;background:var(--accent);color:#1d1400}
+.row button.m{background:#6b8cff;color:#fff;flex:0 0 auto}
+.row button:disabled{background:var(--panel2);color:var(--muted);cursor:not-allowed}
+.hint{color:var(--muted);font-size:13px;text-align:center;margin:6px 0 14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="money"><div><b id="money">0 $</b><small id="rate">0 $/s</small></div>
+    <div class="seg" role="group" aria-label="Quantité à acheter"><button id="q1" class="on">x1</button><button id="q10">x10</button><button id="qm">Max</button></div></div>
+  <p class="hint">Touche une icône pour produire. Achète un manager pour que ça tourne tout seul, même quand l'appli est fermée.</p>
+  <div id="list"></div>
+</div>
+<script src="../shared/common.js"></script>
+<script>
+Arcade.bar('Empire idle');
+const BIZ=[
+  {n:'Stand de citronnade',i:'🍋',c:'#ffe066',cost:4,k:1.07,inc:1,time:0.8,mgr:60},
+  {n:'Food truck',i:'🌮',c:'#ff9f43',cost:60,k:1.15,inc:60,time:3,mgr:1500},
+  {n:'Boulangerie',i:'🥐',c:'#e6b980',cost:720,k:1.14,inc:540,time:6,mgr:12000},
+  {n:'Salle d\'arcade',i:'🕹️',c:'#b36bff',cost:8640,k:1.13,inc:4320,time:12,mgr:1.5e5},
+  {n:'Studio de jeux',i:'🎮',c:'#3fa9ff',cost:103680,k:1.12,inc:51840,time:24,mgr:2e6},
+  {n:'Usine de robots',i:'🤖',c:'#9aa3ad',cost:1244160,k:1.11,inc:622080,time:48,mgr:2.5e7},
+  {n:'Banque',i:'🏦',c:'#3ddc84',cost:14929920,k:1.10,inc:7464960,time:96,mgr:3e8},
+  {n:'Base spatiale',i:'🚀',c:'#ff5a4f',cost:179159040,k:1.09,inc:89579520,time:192,mgr:4e9}
+];
+let S=Arcade.get('tycoon',null);
+if(!S)S={money:0,lv:BIZ.map((_,i)=>i===0?1:0),mg:BIZ.map(()=>false),pr:BIZ.map(()=>0),run:BIZ.map(()=>false),t:Date.now()};
+let qty=1;
+const fmt=n=>{if(n<1000)return (n<10?n.toFixed(1).replace('.0',''):Math.floor(n))+'';const u=['k','M','Md','T','Qa','Qi'];let i=-1;while(n>=1000&&i<u.length-1){n/=1000;i++;}return n.toFixed(n<10?2:n<100?1:0)+' '+u[i];};
+function mult(i){const l=S.lv[i];return (l>=25?2:1)*(l>=50?2:1)*(l>=100?2:1)*(l>=200?2:1);}
+function income(i){return BIZ[i].inc*S.lv[i]*mult(i);}
+function costN(i,n){const b=BIZ[i],l=S.lv[i];return b.cost*Math.pow(b.k,l)*(Math.pow(b.k,n)-1)/(b.k-1);}
+function maxN(i){const b=BIZ[i];const l=S.lv[i];const r=S.money*(b.k-1)/(b.cost*Math.pow(b.k,l))+1;return Math.max(0,Math.floor(Math.log(r)/Math.log(b.k)));}
+function buyCount(i){return qty==='max'?Math.max(1,maxN(i)):qty;}
+// offline earnings
+(function(){const el=Math.min((Date.now()-S.t)/1000,8*3600);let g=0;
+  BIZ.forEach((b,i)=>{if(S.mg[i]&&S.lv[i])g+=income(i)*el/b.time;});
+  if(g>0&&el>30){S.money+=g;setTimeout(()=>Arcade.panel({title:'Bon retour !',text:'Tes managers ont gagné '+fmt(g)+' $ pendant ton absence.',buttons:[{label:'Récupérer'}]}),300);}
+})();
+const list=document.getElementById('list'),refs=[];
+BIZ.forEach((b,i)=>{
+  const d=document.createElement('div');d.className='biz';
+  d.innerHTML=`<button class="ic" style="background:${b.c}" aria-label="Produire ${b.n}">${b.i}<span class="lv"></span></button>
+  <div class="info"><div class="top"><span>${b.n}</span><span class="inc"></span></div><div class="bar"><i></i></div>
+  <div class="row"><button class="buy"></button><button class="m"></button></div></div>`;
+  list.appendChild(d);
+  const r={d,ic:d.querySelector('.ic'),lv:d.querySelector('.lv'),inc:d.querySelector('.inc'),bar:d.querySelector('.bar i'),buy:d.querySelector('.buy'),m:d.querySelector('.m')};
+  r.ic.onclick=()=>{if(S.lv[i]&&!S.run[i]){S.run[i]=true;Arcade.vibrate(5);}};
+  r.buy.onclick=()=>{const n=buyCount(i),c=costN(i,n);if(S.money>=c){S.money-=c;S.lv[i]+=n;Arcade.vibrate(8);render(true);}};
+  r.m.onclick=()=>{if(!S.mg[i]&&S.lv[i]&&S.money>=b.mgr){S.money-=b.mgr;S.mg[i]=true;S.run[i]=true;Arcade.addCoins(5);render(true);}};
+  refs.push(r);
+});
+const seg={q1:1,q10:10,qm:'max'};
+for(const id in seg)document.getElementById(id).onclick=()=>{qty=seg[id];for(const k in seg)document.getElementById(k).classList.toggle('on',k===id);render(true);};
+let acc=0;
+function render(){
+  document.getElementById('money').textContent=fmt(S.money)+' $';
+  let rate=0;BIZ.forEach((b,i)=>{if(S.mg[i]&&S.lv[i])rate+=income(i)/b.time;});
+  document.getElementById('rate').textContent=fmt(rate)+' $/s avec les managers';
+  BIZ.forEach((b,i)=>{
+    const r=refs[i],l=S.lv[i],n=buyCount(i),c=costN(i,n);
+    const visible=i===0||S.lv[i-1]>0;
+    r.d.hidden=!visible;r.d.classList.toggle('locked',!l);
+    r.lv.textContent=l?'niv. '+l:'—';
+    r.inc.textContent=l?fmt(income(i))+' $':'';
+    r.buy.textContent=(l?'Acheter x'+n:'Débloquer')+' · '+fmt(c)+' $';r.buy.disabled=S.money<c;
+    r.m.hidden=S.mg[i]||!l;r.m.textContent='Manager '+fmt(b.mgr)+' $';r.m.disabled=S.money<b.mgr;
+  });
+}
+function bars(){BIZ.forEach((b,i)=>{refs[i].bar.style.width=(S.pr[i]*100)+'%';});}
+let saveT=0;
+Arcade.loop(dt=>{
+  BIZ.forEach((b,i)=>{
+    if(!S.lv[i])return;
+    if(S.mg[i])S.run[i]=true;
+    if(!S.run[i])return;
+    S.pr[i]+=dt/b.time;
+    if(S.pr[i]>=1){
+      if(b.time<0.5&&S.mg[i]){const k=Math.floor(S.pr[i]);S.money+=income(i)*k;S.pr[i]-=k;}
+      else{S.money+=income(i);S.pr[i]=0;if(!S.mg[i])S.run[i]=false;}
+    }
+  });
+  bars();acc+=dt;if(acc>0.2){acc=0;render();}
+  saveT+=dt;if(saveT>3){saveT=0;save();}
+});
+function save(){S.t=Date.now();Arcade.set('tycoon',S);}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
+addEventListener('pagehide',save);
+render();
+</script>
+</body>
+</html>

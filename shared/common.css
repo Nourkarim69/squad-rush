@@ -1,0 +1,31 @@
+/* Shared look for every game screen: dark arcade, one accent. */
+:root{
+  --bg:#12151a; --panel:#1d222a; --panel2:#272e38; --ink:#f3f0e8; --muted:#9aa3ad;
+  --accent:#ffb020; --accent-dk:#9a6400; --good:#3ddc84; --bad:#ff5a4f;
+  --bar:52px; --safe-top:env(safe-area-inset-top,0px); --safe-bot:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+.topbar{position:fixed;left:0;right:0;top:0;z-index:5;height:calc(var(--bar) + var(--safe-top));
+  padding:var(--safe-top) max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px));
+  display:flex;align-items:center;gap:10px;background:var(--bg);border-bottom:1px solid var(--panel)}
+.topbar .ib{color:var(--ink);text-decoration:none;font-size:20px;font-weight:800;min-width:40px;height:40px;padding:0 10px;
+  display:grid;place-items:center;border-radius:10px;background:var(--panel);border:0;font-family:inherit;cursor:pointer}
+.topbar .t{flex:1;font-weight:800;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar .c{color:var(--accent);font-weight:800;font-variant-numeric:tabular-nums}
+.game{position:fixed;left:0;right:0;bottom:0;top:calc(var(--bar) + var(--safe-top));width:100%;
+  height:calc(100% - var(--bar) - var(--safe-top));display:block}
+.ov{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:24px max(16px,env(safe-area-inset-left,0px));text-align:center;background:rgba(10,12,15,.8)}
+.ov h2{margin:0;font-size:30px;font-weight:900;text-wrap:balance}
+.ov p{margin:0;color:var(--muted);max-width:30ch;line-height:1.45;font-size:15px}
+.ov .gain{color:var(--accent);font-weight:900;font-size:20px}
+.btn{font:inherit;font-weight:900;font-size:18px;border:0;border-radius:12px;padding:14px 28px;min-width:180px;
+  background:var(--accent);color:#1d1400;box-shadow:0 4px 0 var(--accent-dk);cursor:pointer}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--accent-dk)}
+.btn.ghost{background:var(--panel2);color:var(--ink);box-shadow:0 4px 0 #090b0e}
+.btn:focus-visible,.ib:focus-visible{outline:3px solid var(--ink);outline-offset:2px}

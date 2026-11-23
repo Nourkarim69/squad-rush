@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#12151a">
+<title>Lancer de couteaux</title>
+<link rel="stylesheet" href="../shared/common.css">
+</head>
+<body>
+<canvas class="game" id="c"></canvas>
+<script src="../shared/common.js"></script>
+<script>
+Arcade.bar('Lancer de couteaux');
+const cv=document.getElementById('c'),V=Arcade.canvas(cv),ctx=V.ctx;
+const HIT=Math.PI/2,GAP=0.2;
+let stage,ang,spd,tt,stuck,apples,left,flying,fails,pieces,state,apGot,pattern,parts=[];
+function setup(){
+  ang=0;tt=0;stuck=[];apples=[];flying=null;fails=[];pieces=[];
+  const boss=stage%5===0;
+  left=boss?9:Math.min(5+Math.floor(stage/1.5),10);
+  const pre=stage===1?0:Math.min(1+Math.floor(stage/3),4);
+  for(let i=0;i<pre;i++)stuck.push(Math.random()*Math.PI*2);
+  const na=Math.random()<0.7?1+(Math.random()<0.3?1:0):0;
+  for(let i=0;i<na;i++){let a;do{a=Math.random()*Math.PI*2;}while(stuck.some(s=>adiff(s,a)<0.5));apples.push(a);}
+  pattern=boss?3:stage<3?0:stage%3;
+  state='play';
+}
+function newGame(){stage=1;apGot=0;setup();Arcade.hidePanel();}
+function adiff(a,b){let d=(a-b)%(Math.PI*2);if(d<0)d+=Math.PI*2;return Math.min(d,Math.PI*2-d);}
+function speedAt(t){
+  const base=1.6+Math.min(stage,15)*0.1;
+  switch(pattern){
+    case 0:return base;
+    case 1:return base*(0.5+Math.abs(Math.sin(t*1.3))*1.4);
+    case 2:return base*(Math.sin(t*0.9)>0?1.2:-1.0);
+    default:return base*(Math.sin(t*2.1)*1.6+Math.sin(t*0.7)*0.8);
+  }
+}
+function throwKnife(){
+  if(state!=='play'||flying||left<=0)return;
+  flying={y:0};left--;
+}
+cv.addEventListener('pointerdown',throwKnife);
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();throwKnife();}});
+
+function geo(){const W=V.W,H=V.H,R=Math.min(W,H)*0.17;return{W,H,R,cx:W/2,cy:H*0.33,ky:H-90};}
+function update(dt){
+  const{R,cy,ky}=geo();
+  tt+=dt;
+  if(state==='play'||state==='fail'){spd=speedAt(tt);ang+=spd*dt;}
+  if(flying){
+    flying.y+=2600*dt;
+    const target=ky-(cy+R);
+    if(flying.y>=target){
+      const local=HIT-ang;
+      if(stuck.some(s=>adiff(s,local)<GAP)){
+        fails.push({x:geo().cx,y:cy+R+30,vx:(Math.random()-0.5)*300,vy:-250,r:0});
+        flying=null;state='fail';Arcade.vibrate(120);setTimeout(gameOver,900);
+      }else{
+        stuck.push(local);flying=null;Arcade.vibrate(10);
+        for(let i=0;i<6;i++)parts.push({x:geo().cx,y:cy+R,vx:(Math.random()-0.5)*200,vy:Math.random()*120,life:0.5,c:'#c98b4a'});
+        for(let i=apples.length-1;i>=0;i--)if(adiff(apples[i],local)<0.3){
+          apples.splice(i,1);apGot++;Arcade.addCoins(2);
+          for(let k=0;k<12;k++)parts.push({x:geo().cx,y:cy+R,vx:(Math.random()-0.5)*300,vy:-Math.random()*250,life:0.7,c:k%2?'#e8323c':'#fff3c4'});
+        }
+        if(left===0){
+          state='clear';
+          for(let i=0;i<8;i++){const a=i/8*Math.PI*2;pieces.push({x:geo().cx,y:cy,vx:Math.cos(a)*260,vy:Math.sin(a)*260-200,r:a,vr:(Math.random()-0.5)*10});}
+          for(const s of stuck){const a=s+ang;fails.push({x:geo().cx+Math.cos(a)*R,y:cy+Math.sin(a)*R,vx:Math.cos(a)*300,vy:Math.sin(a)*300-150,r:a,vr:(Math.random()-0.5)*14});}
+          stuck=[];apples=[];
+          Arcade.vibrate([20,40,20]);
+          setTimeout(()=>{stage++;setup();},1000);
+        }
+      }
+    }
+  }
+  for(const p of pieces){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=900*dt;p.r+=p.vr*dt;}
+  for(const f of fails){f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=900*dt;f.r+=(f.vr||12)*dt;}
+  for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=600*dt;p.life-=dt;}
+  parts=parts.filter(p=>p.life>0);
+}
+function gameOver(){
+  const reached=stage;const gain=Arcade.addCoins(stage*3),best=Arcade.best('knife',stage);
+  Arcade.panel({title:'Touché !',gain,text:'Tu as atteint le niveau '+reached+' · Record : niveau '+best+' · Pommes : '+apGot,
+    buttons:[{label:'Rejouer',onClick:newGame},{label:'Menu',onClick:Arcade.toMenu}]});
+}
+function knife(x,y,rot,len){
+  ctx.save();ctx.translate(x,y);ctx.rotate(rot);
+  // pointing "up" (negative y) is the tip
+  ctx.fillStyle='#dfe6ee';ctx.beginPath();ctx.moveTo(0,-len*0.55);ctx.lineTo(len*0.09,-len*0.1);ctx.lineTo(len*0.09,0);ctx.lineTo(-len*0.06,0);ctx.lineTo(-len*0.06,-len*0.42);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#9aa6b2';ctx.fillRect(-len*0.06,-len*0.42,len*0.04,len*0.42);
+  ctx.fillStyle='#2b2f35';ctx.fillRect(-len*0.12,0,len*0.27,len*0.05);
+  ctx.fillStyle='#7a3b1d';ctx.beginPath();ctx.roundRect(-len*0.06,len*0.05,len*0.15,len*0.4,len*0.05);ctx.fill();
+  ctx.restore();
+}
+function frame(dt){
+  update(dt);
+  const{W,H,R,cx,cy,ky}=geo(),len=R*0.95;
+  const boss=stage%5===0;
+  const g=ctx.createRadialGradient(cx,cy,10,cx,cy,H);g.addColorStop(0,boss?'#4a1e2a':'#2a3550');g.addColorStop(1,'#10131c');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#fff';ctx.font='900 22px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(boss?'BOSS · Niveau '+stage:'Niveau '+stage,W/2,28);
+  // stage dots
+  for(let i=0;i<5;i++){const s=(Math.floor((stage-1)/5)*5)+i+1;ctx.fillStyle=s<stage?'#ffb020':s===stage?'#fff':'rgba(255,255,255,.25)';
+    ctx.beginPath();ctx.arc(W/2+(i-2)*18,52,i===4?6:4,0,7);ctx.fill();}
+  // stuck knives (behind log)
+  for(const s of stuck){const a=s+ang;knife(cx+Math.cos(a)*(R+len*0.18),cy+Math.sin(a)*(R+len*0.18),a-Math.PI/2,len);}
+  // apples
+  for(const a0 of apples){const a=a0+ang,ax=cx+Math.cos(a)*(R+12),ay=cy+Math.sin(a)*(R+12);
+    ctx.fillStyle='#e8323c';ctx.beginPath();ctx.arc(ax,ay,12,0,7);ctx.fill();ctx.fillStyle='#3ddc84';ctx.fillRect(ax-1,ay-17,3,7);}
+  // log
+  if(state!=='clear'){
+    ctx.save();ctx.translate(cx,cy);ctx.rotate(ang);
+    ctx.fillStyle=boss?'#7a2e3a':'#b9783e';ctx.beginPath();ctx.arc(0,0,R,0,7);ctx.fill();
+    ctx.strokeStyle=boss?'#5a1f28':'#8d5626';ctx.lineWidth=4;
+    for(const k of[0.75,0.5,0.25]){ctx.beginPath();ctx.arc(0,0,R*k,0,7);ctx.stroke();}
+    ctx.fillStyle=boss?'#5a1f28':'#8d5626';ctx.fillRect(-R*0.05,-R*0.95,R*0.1,R*0.3);
+    ctx.restore();
+  }
+  for(const p of pieces){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r);ctx.fillStyle=boss?'#7a2e3a':'#b9783e';
+    ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,R*0.6,0,Math.PI/4);ctx.fill();ctx.restore();}
+  for(const f of fails)knife(f.x,f.y,f.r,len);
+  if(flying)knife(cx,ky-flying.y,0,len);
+  else if(state==='play'&&left>0)knife(cx,ky,0,len);
+  // remaining
+  for(let i=0;i<left;i++){ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillRect(18,H-30-i*18,22,6);}
+  for(const p of parts){ctx.globalAlpha=Math.min(1,p.life*2);ctx.fillStyle=p.c;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
+  ctx.fillStyle='#ffb020';ctx.font='800 16px system-ui';ctx.textAlign='right';ctx.fillText('🍎 '+apGot,W-16,H-24);
+}
+stage=1;apGot=0;setup();state='idle';
+Arcade.panel({title:'Lancer de couteaux',text:'Touche l\'écran pour lancer un couteau dans le tronc. Ne touche jamais un autre couteau. Les pommes rapportent des pièces.',
+  buttons:[{label:'Jouer',onClick:newGame},{label:'Menu',onClick:Arcade.toMenu}]});
+Arcade.loop(frame);
+</script>
+</body>
+</html>

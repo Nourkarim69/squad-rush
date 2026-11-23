@@ -1,26 +1,32 @@
-# Squad Rush
+# Satisfy Arcade
 
-Un petit jeu de type « runner de foule » jouable dans le navigateur, en un seul fichier HTML/JavaScript (canvas 2D, aucune dépendance).
+Une appli mobile (PWA) qui regroupe 10 mini-jeux « satisfaisants », 2 par catégorie. Tout est en HTML/JavaScript, sans dépendance. Elle s'installe sur l'écran d'accueil et marche hors ligne.
 
-Guide ton escouade à travers le désert, passe dans les bonnes portes pour grossir tes rangs, abats les ennemis et détruis le colosse au bout de chaque niveau.
-
-## Jouer
-
-Ouvre `index.html` dans un navigateur, c'est tout.
-
-## Règles
-
-- **Portes bleues** (`+8`, `×2`, `TIR +20%`) : plus de soldats ou une meilleure cadence de tir.
-- **Portes rouges** (`−6`, `÷2`) : tu perds des soldats.
-- Tirer sur une porte `+`/`−` augmente sa valeur : une porte rouge peut devenir bleue.
-- **Ennemis** : le nombre affiché correspond à leurs PV. Au contact, ils tuent autant de soldats.
-- **Boss** : le colosse avance vers toi en fin de niveau. Abats-le avant qu'il n'écrase ton escouade.
-- Entre les niveaux, dépense tes pièces : recrues de départ, cadence de tir, dégâts.
-
-## Contrôles
-
-| Action | Contrôle |
+| Catégorie | Jeux |
 | --- | --- |
-| Déplacer l'escouade | Glisser au doigt / à la souris, ou `←` `→` / `A` `D` |
+| Foule et chiffres | Squad Rush, Trou glouton |
+| Satisfaisant | Tri des couleurs, Karcher |
+| Puzzle | Fusion 2048, Bloc puzzle |
+| Réflexes | Lancer de couteaux, Tour infinie |
+| Idle et gestion | Empire idle, Dernière tour |
 
-La progression (niveau, pièces, améliorations) est sauvegardée dans le `localStorage` du navigateur.
+Les pièces (●) gagnées dans chaque jeu sont partagées et affichées dans le menu.
+
+## Lancer en local
+
+```
+python -m http.server 8765
+```
+
+Puis ouvre http://localhost:8765 dans le navigateur.
+
+## Installer sur le téléphone
+
+L'appli doit être servie en HTTPS (par exemple avec GitHub Pages). Ouvre l'adresse dans Chrome sur Android puis « Installer l'application » (ou Safari sur iPhone, Partager puis « Sur l'écran d'accueil »).
+
+## Structure
+
+- `index.html` : menu d'accueil
+- `games/` : un fichier par jeu
+- `shared/` : style et fonctions communes (pièces, sauvegarde, barre du haut)
+- `manifest.webmanifest`, `sw.js`, `icons/` : ce qui rend l'appli installable et disponible hors ligne
