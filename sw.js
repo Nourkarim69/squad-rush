@@ -1,5 +1,5 @@
 // Offline cache: serve from cache, refresh in the background.
-const VERSION = 'arcade-v1';
+const VERSION = 'arcade-v2';
 const FILES = [
   './', './index.html', './manifest.webmanifest',
   './shared/common.css', './shared/common.js',
